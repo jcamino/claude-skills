@@ -9,7 +9,117 @@ hidden: true
 
 `agent-browser` is one of three browser paths on this machine. This file routes between them and covers the cases only agent-browser can do. It does not replace the CLI's own guides.
 
-**Measured here 2026-09-04:** agent-browser takes **~184 s to open `example.com`** and 39 s to snapshot it. The latency is the tool, not the page. That number decides the table below. It is a cost, not a ban.
+**Re-measured 2026-09-08 on 0.36.0 — agent-browser is fast. The old "~184 s to open
+`example.com`" was a harness bug, now understood (see [The 1-hour hang](#the-1-hour-hang)).**
+Medians, n=10 per op, its own headless Chrome:
+
+| op | cold | warm |
+|---|---|---|
+| `open` | **2.1 s** (1.7–2.5) | 0.53 s |
+| `snapshot -i` (example.com) | — | **0.41 s / 74 B** |
+| `get title` / `eval` / `screenshot` | — | 0.40–0.47 s |
+| `snapshot -i` (duckduckgo.com) | — | 0.58 s / **9.6 KB** |
+
+In `--cdp` mode against an existing Chrome: cold 0.87 s, warm ops ~0.40–0.46 s.
+The 2026-09-04 run logged 39 s for the snapshot that returned **73 B**; the same
+snapshot today returns **74 B** in 0.41 s — same payload, 95× the time, because the
+harness hung rather than Chrome being slow.
+
+### All three paths, same page, same day
+
+`example.com`, n=10, medians (2026-09-08). Only agent-browser's old numbers were
+wrong — playwright-cli's 2026-09-04 figures reproduce almost exactly (0.9 s → 0.95 s),
+because it runs no daemon and so never hits the pipe trap.
+
+| path | navigate | snapshot | snapshot bytes |
+|---|---|---|---|
+| raw CDP script | **0.24 s** (whole connect→goto→innerText cycle) | n/a | 129 B innerText |
+| agent-browser `--cdp`, warm | 0.44 s | **0.46 s** | **74 B** |
+| agent-browser own Chrome, warm | 0.53 s | 0.41 s | 74 B |
+| playwright-cli extension | 1.07 s | 0.95 s | 779 B |
+
+On a heavy page (`duckduckgo.com`): agent-browser snapshot 0.58 s / **9.6 KB**,
+playwright-cli snapshot 1.17 s / **41.6 KB**, playwright-cli goto 1.89 s.
+
+**So playwright-cli is now the slowest of the three and returns 10-40× more bytes.**
+Its remaining edge is the one thing it alone does: attach to the real logged-in Chrome
+through the extension with **no debug port**. Reach for it for that, not for speed.
+
+### Complex unknown DOM: all three succeed, cost differs
+
+2026-09-08, three parallel Sonnet subagents, same task on `github.com/trending`
+(extract top-5 repos + "stars today", then drive the date-range control to "This week"
+by clicking, not by URL). **All three fully succeeded and returned identical data**, so
+this is a cost comparison, not a capability one. Latency was measured under parallel CPU
+contention — use the serial table above for latency.
+
+| path | tool-output tokens | total agent tokens | tool calls | wall (contended) |
+|---|---|---|---|---|
+| raw CDP script | **5,086** | **70,879** | **10** | 9 s |
+| playwright-cli | 8,432 | 80,276 | 35 | 36 s |
+| agent-browser | 9,459 | 73,698 | 24 | 133 s |
+
+**The finding that actually changes how to use all three: `eval` with a targeted DOM
+query beat every accessibility-tree approach, by 10-40×.** A hand-rolled selector cost
+500-900 B where a snapshot/`find` cost 9-40 KB, and it was *more* correct:
+
+- **agent-browser `snapshot -i` omits static text.** The "stars today" figure is not an
+  interactive element, so the snapshot cannot answer that half of the task at all —
+  the agent had to fall back to `eval`. Do not assume a snapshot sees the page.
+- **playwright-cli `find` elides sibling content with `...`**, which collapsed the repo
+  names away from the star counts exactly when both were needed. `eval` fixed it in one
+  shot.
+- **The CDP path's whole discovery cost was one `outerHTML` dump of a single
+  representative row** (11.3 KB of its 12.6 KB total), then structured JSON forever
+  after. Peek at one element, not the list.
+- playwright-cli also mirrors every action's snapshot to `.playwright-cli/*.yml`
+  (105 KB across 4 files here). That is disk, not context — until someone `cat`s one.
+
+So: snapshot to find *refs to click*, then `eval` to *read data*. Snapshotting to read is
+the expensive mistake on every one of the three paths.
+
+`snapshot -i` is only small on a small page: 74 B on `example.com` but 9.6 KB on a
+marketing homepage. The "~200–400 tokens" claim in the vendor guide does not hold for
+busy pages — use `find`/`get` when you already know the target.
+
+## The 1-hour hang
+
+**Never `out=$(agent-browser …)`.** A command that spawns a new daemon hands the daemon
+the command-substitution pipe's write end, so the shell waits for an EOF that only
+arrives when the daemon exits — at its **1-hour idle timeout**. Confirmed 2026-09-08:
+
+| capture | daemon | result |
+|---|---|---|
+| direct | new | ok, 1.8 s |
+| **`$(...)`** | **new** | **hang (killed at 60 s guard; would be ~1 h)** |
+| `> file` | new | ok, 2.2 s |
+| `$(...)` | warm | ok, 1.0 s |
+
+Redirect to a file and read the file, or pre-warm the daemon once before capturing.
+This is almost certainly what produced the 2026-09-04 numbers, and it hits any wrapper
+script — the stall looks exactly like "the tool is slow".
+
+**Cleanup is not automatic either.** `close` prints "✓ Browser closed" while the session
+stays in `session list`; a killed script orphans its daemon *and* ~20 Chromes, and
+leftover `~/.agent-browser/<session>.*` files make `session list`/`doctor` respawn them.
+Killing a background task kills the wrapper, not the child `bash script.sh` — kill the
+script by name too.
+
+Use the wrapper in this directory rather than doing it by hand:
+
+```bash
+pwsh ~/.claude/skills/agent-browser/ab-cleanup.ps1                    # status (read-only, default)
+pwsh ~/.claude/skills/agent-browser/ab-cleanup.ps1 -Session eval-ab-1 # close + kill daemon + purge its state
+pwsh ~/.claude/skills/agent-browser/ab-cleanup.ps1 -All -DryRun       # show what a full nuke would do
+pwsh ~/.claude/skills/agent-browser/ab-cleanup.ps1 -All               # nuke (prompts; -Force to skip)
+```
+
+It matches Chrome **only** on the private `--user-data-dir=…agent-browser-chrome-<uuid>`
+profile, so it cannot touch the user's Chrome, the `.chrome-cdp-yunnan` CDP profile or
+the `takanaka-watch` watcher — verified 2026-09-08 against 55 live Chrome processes
+(kill set 11, zero overlap with either protected profile). `-Session` cannot kill that
+session's browsers, because the profile dir is a random uuid with no session name in it;
+it reports the leftovers and leaves them for `-All`.
 
 ## Pick by task shape
 
@@ -18,12 +128,12 @@ hidden: true
 | The user named a tool ("use agent-browser", "use playwright") | **the tool they named** | see [When the user names the tool](#when-the-user-names-the-tool) |
 | **Read a page you are not logged into** | **no browser at all** | `curl` first; on 403/302/000 retry with `curl_cffi`: `requests.get(url, impersonate="chrome")`. 0.1–1.3 s. See [No browser needed](#no-browser-needed) |
 | Read text off a page that needs the login | CDP `innerText` | `connectOverCDP('http://127.0.0.1:9333')` → `page.evaluate(() => document.body.innerText)`. 1.4 KB, vs 28 KB for a snapshot |
-| Recurring, on a timer, or selectors already known | hand-written CDP script | connect to `:9333`, own page, parse, close. ~1.4 s per run |
-| Unknown web page, must click or fill, needs the real login | `playwright-cli` extension mode | `playwright-cli attach --extension=chrome`, then `playwright-cli -s=chrome <goto\|snapshot\|click\|fill>`. `detach` when done, never `close` |
+| Recurring, on a timer, or selectors already known | hand-written CDP script | connect to `:9333`, own page, parse, close. **0.24 s / 129 B** on `example.com` (n=10, 2026-09-08); still cheapest, but only ~2× ahead of agent-browser now, not 100× |
+| Unknown web page, must click or fill, needs the real login **and there is no debug port** | `playwright-cli` extension mode | `playwright-cli attach --extension=chrome`, then `playwright-cli -s=chrome <goto\|snapshot\|click\|fill>`. goto 1.07 s, snapshot 0.95 s / 779 B (41.6 KB on a busy page) — slowest of the three, pick it for the no-port login, not for speed. `tab-new` first so you never drive a tab the user is in; `detach` when done, never `close` |
 | **Electron desktop app** (Slack, VS Code, Discord, Figma, Notion, Spotify) | **agent-browser** | [below](#electron-desktop-apps) — nothing else here does this |
 | **Standalone API client derived from a site's traffic** | **agent-browser** | `agent-browser skills get derive-client` |
 | **Cloud browser** (Vercel Sandbox microVM, AWS Bedrock AgentCore) | **agent-browser** | `agent-browser skills get vercel-sandbox` / `agentcore` |
-| Structured QA / dogfood sweep of a web app | agent-browser, budgeting ~3 min per navigation | `agent-browser skills get dogfood` |
+| Structured QA / dogfood sweep of a web app | agent-browser, budgeting ~2 s per navigation | `agent-browser skills get dogfood` |
 
 Port **9333** is the logged-in CDP profile. Port **9334** belongs to a watcher — leave it alone.
 Confirm **9333 is actually listening** before routing to it; it has been found down while
