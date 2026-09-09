@@ -90,9 +90,16 @@ category, spend the budget on what works, and say why.
 
 ## Tooling
 
-If the page renders price or delivery through JS, if the site returns a bot-check, or if
-the destination needs a session cookie, curl cannot do it — drive a real browser and
-persist cookies after setting the destination.
+If the page renders price or delivery through JS, or the destination needs a session
+cookie, curl cannot do it — drive a real browser and persist cookies after setting the
+destination.
+
+A **bot-check alone is not a reason to open a browser.** It is usually the TLS
+fingerprint. Retry with `curl_cffi` first — `requests.get(url, impersonate="chrome")` —
+which turns iHerb search from `403` into a 2.6 MB page in 0.8 s, and does the same for
+Akamai-fronted retail. Falls down on two things: a Cloudflare managed challenge, and
+shields that answer with a success status and an empty body (Booking.com: `202`, 3.9 KB),
+so check body length, not just the status. Measurements: `~/Code/CURL.md`.
 
 - `references/browser-setup.md` — site-agnostic browser pattern
 - `references/amazon.md` — Amazon-specific selectors and ASIN handling

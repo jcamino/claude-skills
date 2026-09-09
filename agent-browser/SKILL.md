@@ -16,7 +16,8 @@ hidden: true
 | Task | Use | How |
 |---|---|---|
 | The user named a tool ("use agent-browser", "use playwright") | **the tool they named** | see [When the user names the tool](#when-the-user-names-the-tool) |
-| Read text off a page | CDP `innerText` | `connectOverCDP('http://127.0.0.1:9333')` → `page.evaluate(() => document.body.innerText)`. 1.4 KB, vs 28 KB for a snapshot |
+| **Read a page you are not logged into** | **no browser at all** | `curl` first; on 403/302/000 retry with `curl_cffi`: `requests.get(url, impersonate="chrome")`. 0.1–1.3 s. See [No browser needed](#no-browser-needed) |
+| Read text off a page that needs the login | CDP `innerText` | `connectOverCDP('http://127.0.0.1:9333')` → `page.evaluate(() => document.body.innerText)`. 1.4 KB, vs 28 KB for a snapshot |
 | Recurring, on a timer, or selectors already known | hand-written CDP script | connect to `:9333`, own page, parse, close. ~1.4 s per run |
 | Unknown web page, must click or fill, needs the real login | `playwright-cli` extension mode | `playwright-cli attach --extension=chrome`, then `playwright-cli -s=chrome <goto\|snapshot\|click\|fill>`. `detach` when done, never `close` |
 | **Electron desktop app** (Slack, VS Code, Discord, Figma, Notion, Spotify) | **agent-browser** | [below](#electron-desktop-apps) — nothing else here does this |
@@ -25,6 +26,27 @@ hidden: true
 | Structured QA / dogfood sweep of a web app | agent-browser, budgeting ~3 min per navigation | `agent-browser skills get dogfood` |
 
 Port **9333** is the logged-in CDP profile. Port **9334** belongs to a watcher — leave it alone.
+Confirm **9333 is actually listening** before routing to it; it has been found down while
+Chrome was running, and a script that assumes it silently fails.
+
+## No browser needed
+
+A bot wall is usually a **TLS fingerprint** problem, not a site that needs a browser.
+Measured 2026-09-08, plain `curl` → `curl_cffi` with `impersonate="chrome"`:
+
+- `l-tike.com` (Akamai): `000` after 25 s → **200, 104 KB, 0.1 s**
+- `iherb.com` search (PerimeterX): `403` → **200, 2.6 MB, 0.8 s**
+- `tradead.tixplus.jp`: `302` → **200, 158 KB, 1.3 s**
+
+So try that **before** opening anything. Two caveats measured the same day:
+
+- A Cloudflare **managed challenge** is real and no fingerprint passes it
+  (`travel.state.gov` stayed challenged across five impersonation profiles, and after
+  warming `__cf_bm` on the origin root). That case needs `:9333`.
+- Some shields answer with a **success status and no content** — Booking.com returns
+  `202` with 3.9 KB. Check the body length, not the status code.
+
+Full measurements and the challenge-detection snippet: `~/Code/CURL.md`.
 
 ## When the user names the tool
 
