@@ -18,6 +18,7 @@ Private on purpose: several skills hardcode this machine's paths
 | `hotel-room-search` | Room-level hotel search — bed configuration, free-cancellation deadlines, thin holiday availability. Scripts scrape Booking.com and Airbnb over CDP. |
 | `researching-purchases` | Online purchase research: price, stock, sizing, compatibility, delivery against a deadline. |
 | `scripted-booking` | Drives real booking funnels with a scripted browser so card data never enters agent context. Stops short of payment and reports cancellation terms first. |
+| `scripting-browser-workflows` | Turns a workflow driven once by hand into replayable code: a recipe of what was observed, scripts for the no-browser / CDP / CLI tiers, and a bench that fails them on a page that changed. Ships an offline fixture site carrying nine real traps. |
 
 Not tracked here: `ui-ux-pro-max` and `web-design-guidelines` are symlinks into
 `~/.agents/skills` and belong to their upstreams.

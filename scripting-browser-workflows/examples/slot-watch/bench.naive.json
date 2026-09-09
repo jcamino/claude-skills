@@ -1,0 +1,51 @@
+{
+  "setup": [
+    "node",
+    "setcase.mjs",
+    "{case}"
+  ],
+  "cases": {
+    "many": {
+      "expect": {
+        "status": "open",
+        "slots": [
+          "10:30",
+          "13:00",
+          "17:00"
+        ]
+      }
+    },
+    "one": {
+      "expect": {
+        "status": "open",
+        "slots": [
+          "13:00"
+        ]
+      }
+    },
+    "none": {
+      "expect": {
+        "status": "none",
+        "slots": []
+      }
+    },
+    "drift": {
+      "expect": {
+        "status": "drift",
+        "slots": [],
+        "why": "page loaded, slot markup gone"
+      },
+      "comment": "slots ARE open here; the class was renamed. naive answers none = blind."
+    }
+  },
+  "backends": {
+    "naive": [
+      "node",
+      "run.naive.mjs"
+    ],
+    "cdp": [
+      "node",
+      "run.cdp.mjs"
+    ]
+  }
+}

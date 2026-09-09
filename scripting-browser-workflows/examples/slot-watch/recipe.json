@@ -1,0 +1,90 @@
+{
+  "name": "slot-watch",
+  "goal": "report which of today's time slots are actually bookable",
+  "schema": "see ../../references/recipe-schema.md — this file is emitted FROM, never executed",
+
+  "recorded": {
+    "at": "2026-09-09",
+    "by": "claude-opus-5",
+    "site": "http://127.0.0.1:8712/slots",
+    "how": "drove it once over CDP on a throwaway Chrome, then diffed the three fixture states"
+  },
+
+  "observed": [
+    "Slot buttons are injected ~400 ms after load by an inline script; a read at t=0 sees 'loading…'.",
+    "Button text is the time and is IDENTICAL whether or not the slot is bookable. Truth is data-available=\"true\" and :not([disabled]).",
+    "The page fetches /api/slots with a one-shot x-slot-token minted into <meta name=slot-token>. Re-minting per run works; replaying a captured token 403s.",
+    "An #emptyBanner element states the genuine no-slots case — it exists only on variant v1."
+  ],
+
+  "tier": {
+    "chosen": "api",
+    "why": "the page's own JSON call answers the whole question; 182 ms vs 1401 ms for the DOM path",
+    "fallback": "cdp",
+    "fallbackWhen": "the token mint stops matching, the API shape changes, or the answer needs anything the JSON does not carry"
+  },
+
+  "steps": [
+    {
+      "id": "mint",
+      "action": "get",
+      "url": "{site}/slots",
+      "extract": { "token": { "from": "html", "pattern": "name=\"slot-token\"\\s+content=\"([^\"]+)\"" } },
+      "note": "one-shot; must be re-minted every run"
+    },
+    {
+      "id": "read",
+      "action": "get",
+      "url": "{site}/api/slots",
+      "headers": { "x-slot-token": "{token}" },
+      "expectShape": { "slots": [{ "id": "string", "time": "string", "available": "boolean" }] }
+    }
+  ],
+
+  "domSteps": [
+    {
+      "id": "open",
+      "action": "goto",
+      "url": "{site}/slots",
+      "waitFor": "either .slot exists OR #emptyBanner is visible — never wait on the good outcome alone, or 'no slots' arrives as a timeout"
+    },
+    {
+      "id": "read",
+      "action": "extract",
+      "selector": ["#slots button", ".slot", ".slot-card"],
+      "fields": {
+        "time": "textContent.trim()",
+        "available": "dataset.available === 'true' && !el.disabled"
+      },
+      "note": "selector candidates in order of durability: structural anchor first, recorded class second, the class it was renamed to third"
+    }
+  ],
+
+  "signals": {
+    "positive": { "test": "any extracted row has available === true", "means": "open" },
+    "negative": { "test": "rows exist but none available, OR #emptyBanner visible", "means": "none — a real, trustworthy zero" },
+    "canary": { "test": "nav a[href='/slots'] exists", "means": "the page rendered at all; distinguishes a moved element from a dead site" },
+    "drift": { "test": "neither positive nor negative holds", "means": "report drift — NEVER 'none'" }
+  },
+
+  "output": {
+    "shape": { "status": "open|none|drift|error", "slots": ["HH:MM"], "why": "string, only when not open/none" },
+    "contract": "one JSON object on stdout, exit 0 — every backend emits identical bytes so the bench can diff them"
+  },
+
+  "budget": {
+    "timeoutMs": 8000,
+    "minIntervalMs": 60000,
+    "note": "the drift case costs the full timeout — it is the slowest path, not the fastest"
+  },
+
+  "secrets": [],
+
+  "money": { "reachable": false, "note": "read-only workflow; nothing here can spend" },
+
+  "verify": {
+    "bench": "node ../../harness/bench.mjs . -n 10",
+    "cases": "bench.json — many | one | none | drift",
+    "mustFail": "flip the fixture to variant=v2 and confirm the DOM backends say drift, not none"
+  }
+}

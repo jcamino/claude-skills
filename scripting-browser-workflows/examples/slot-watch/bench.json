@@ -1,0 +1,23 @@
+{
+  "setup": ["node", "setcase.mjs", "{case}"],
+  "cases": {
+    "many":  { "expect": { "status": "open",  "slots": ["10:30", "13:00", "17:00"] } },
+    "one":   { "expect": { "status": "open",  "slots": ["13:00"] } },
+    "none":  { "expect": { "status": "none",  "slots": [] } },
+    "drift": {
+      "expect": { "status": "drift", "slots": [], "why": "page loaded, slot markup gone" },
+      "per": {
+        "api": {
+          "comment": "the no-browser backend never sees the DOM, so renamed markup cannot fool it; it must still report the truth",
+          "expect": { "status": "open", "slots": ["10:30", "13:00", "17:00"] },
+          "forbid": { "status": "none", "slots": [] }
+        }
+      }
+    }
+  },
+  "backends": {
+    "api": ["node", "run.api.mjs"],
+    "cdp": ["node", "run.cdp.mjs"],
+    "cli": ["bash", "run.cli.sh"]
+  }
+}
