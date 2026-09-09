@@ -111,15 +111,23 @@ if ($All) {
 }
 
 if ($Session) {
+  # `close` SPAWNS a daemon when none is running, to service the close. Record the
+  # daemons that existed beforehand so we can tell that new orphan apart from other
+  # sessions' daemons, which we must not touch.
+  $before = @(Get-Process -Name 'agent-browser*' -ErrorAction SilentlyContinue |
+              Select-Object -ExpandProperty Id)
   # Graceful first: let the CLI try, then take the state file out so nothing respawns.
   & agent-browser --session $Session close *> $null
+  Start-Sleep -Milliseconds 1200
+  $spawned = @(Get-Process -Name 'agent-browser*' -ErrorAction SilentlyContinue |
+               Where-Object { $before -notcontains $_.Id })
   $pidFile = Join-Path $StateDir "$Session.pid"
-  $d = @()
+  $d = @($spawned)
   if (Test-Path $pidFile) {
     $sessionPid = (Get-Content $pidFile -Raw).Trim()
     if ($sessionPid -match '^\d+$') {
       $p = Get-Process -Id ([int]$sessionPid) -ErrorAction SilentlyContinue
-      if ($p) { $d = @($p) }
+      if ($p -and ($d | Where-Object { $_.Id -eq $p.Id }).Count -eq 0) { $d += $p }
     }
   }
   $f = @()
