@@ -1,0 +1,13 @@
+# Third-party skills, symlinked in from ~/.agents/skills — not ours to version
+/ui-ux-pro-max
+/web-design-guidelines
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Editor / backup cruft
+*.bak
+*.bak-*
+*~
+.DS_Store
