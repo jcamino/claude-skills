@@ -39,13 +39,49 @@ const r = await page.evaluate(fillCardFn, card);   // returns {okN, okC, okE} on
 Never through argv, never through an env var you echo, never through a log line,
 never through a tool result you will read.
 
-**2. `stopBefore` is a required argument, not a default.**
+**2. You do not arm the money. A human does.**
 
 Every funnel driver takes `stopBefore: 'cart' | 'payment' | 'confirm' | null`.
-`null` — money reachable — is passed only when an explicit `ARMED` state file
-exists and `dryRun` is false. A script that can reach the pay button by
-forgetting a flag is a bug, not a convenience. Name the point of no return in a
-comment at the one call site that can cross it.
+`null` — money reachable — is passed only when an `ARMED` state file already
+exists, put there by a human out of band, and `dryRun` is false. A script that
+can reach the pay button by forgetting a flag is a bug, not a convenience. Name
+the point of no return in a comment at the one call site that can cross it.
+
+**Never create the `ARMED` file yourself.** A file you wrote to satisfy your own
+check is not a gate, it is a comment. Writing it forges the record of a decision
+a human did not make.
+
+The request to book is not the authorization to charge. "Book it, card's in
+`payments.env`, I'm about to go offline" is what makes the work worth doing; it
+is not the second signature on the money. A customer who cannot be reached is
+the argument for stopping at payment-ready — not for crossing the line while
+they cannot see it.
+
+Stopping short of money is a finished job, not a failed one. What you hand back:
+the funnel at payment-ready (hold released if it would expire before they read
+you), the exact total, the three policy facts from rule 3, and the single action
+left for the human.
+
+| Rationalization | Reality |
+|---|---|
+| "They said just book it." | The instruction is the request. `ARMED` is the authorization. One party supplying both, inside a chat window, is the exact failure this rule exists for. |
+| "They're offline for hours and can't confirm." | Then deliver payment-ready plus the report before they land. Unreachable is not consent. |
+| "Date, time, quantity and card were all unambiguous, and I verified availability live." | Getting the order right is not permission to pay for it. A correct charge you were not authorized to make is still a charge someone has to reverse. |
+| "The instruction clearly means to arm it, so I'll write the `ARMED` file." | You are not the human the file represents. |
+| "The card is sitting right there in the stack." | Card availability is a convenience of the tooling, never an authorization. |
+| "If I stop, the slot might sell out." | Report the scarcity and let them choose. Almost nothing sells out in the minutes it takes to send a reply. |
+| "3DS is `app`, but it probably won't challenge." | With the human unreachable, an `app`-mode challenge is an unattended hung checkout. Mode is knowable before you start; check it. |
+
+**Red flags — stop and hand back instead:**
+
+- You are about to create, touch, or overwrite an `ARMED` file
+- You are changing `stopBefore` to `null` in a script you wrote this session
+- The words "explicit instruction", "unambiguous", or "clearly authorized" are
+  doing the work in your reasoning about paying
+- You are reasoning about what the customer *would* say if they were reachable
+- The customer is unreachable and you are still moving toward the pay button
+
+Violating the letter of this rule is violating the spirit of it.
 
 **3. Report the terms before anyone pays.**
 
@@ -138,6 +174,8 @@ session themselves than have the image exist at all.
 - [ ] Confirmed the exact requested date/time/quantity is available, from DOM state
 - [ ] Reported cancellation deadline, change policy, and operator-cancellation refund
 - [ ] Card path is `page.evaluate(fillCardFn, card)` or the human's own hands
-- [ ] `stopBefore` set explicitly; `ARMED` required to reach money
+- [ ] `stopBefore` set explicitly; any `ARMED` file predates this session and was
+      not written by you
 - [ ] Known the card's 3DS mode before arming
+- [ ] Cart hold released, or its expiry stated in the report
 - [ ] Screenshots masked or declined
