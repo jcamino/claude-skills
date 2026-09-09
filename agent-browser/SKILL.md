@@ -1,59 +1,67 @@
 ---
 name: agent-browser
-description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to "open a website", "fill out a form", "click a button", "take a screenshot", "scrape data from a page", "test this web app", "login to a site", "automate browser actions", or any task requiring programmatic web interaction. Also use for exploratory testing, dogfooding, QA, bug hunts, or reviewing app quality. Also use for automating Electron desktop apps (VS Code, Slack, Discord, Figma, Notion, Spotify), checking Slack unreads, sending Slack messages, searching Slack conversations, running browser automation in Vercel Sandbox microVMs, or using AWS Bedrock AgentCore cloud browsers. NOTE (measured 2026-09-04 on this machine): agent-browser averages ~3 minutes per navigation here, so do NOT prefer it by default — see "Browser automation" in ~/.claude/CLAUDE.md for which tool to use when.
+description: Use when a task needs a real browser or an Electron desktop app on this machine - opening pages, filling forms, clicking, screenshots, scraping, logging in, QA or dogfood sweeps, Slack/VS Code/Discord/Figma automation, deriving a standalone API client from a site's own traffic, or cloud browsers (Vercel Sandbox, AWS AgentCore). Also use when choosing between agent-browser, a raw CDP script, and playwright-cli.
 allowed-tools: Bash(agent-browser:*), Bash(npx agent-browser:*)
 hidden: true
 ---
 
 # agent-browser
 
-> **LOCAL OVERRIDE (Javier, 2026-09-04): do not use this by default.**
-> Measured on this machine: **~184 s to open `example.com`**, 39 s to snapshot it.
-> The latency is the tool, not the page, and it is unexplained. Use a CDP script
-> for anything recurring and Microsoft's `@playwright/cli` (extension mode) for
-> discovery — see "Browser automation" in `~/.claude/CLAUDE.md` and the
-> `browser-tool-costs` memory. Revisit this override if the latency is fixed.
-> (This file ships with the CLI; `npm i -g agent-browser` will overwrite it.)
+`agent-browser` is one of three browser paths on this machine. This file routes between them and covers the cases only agent-browser can do. It does not replace the CLI's own guides.
 
-Fast browser automation CLI for AI agents. Chrome/Chromium via CDP with accessibility-tree snapshots and compact `@eN` element refs.
+**Measured here 2026-09-04:** agent-browser takes **~184 s to open `example.com`** and 39 s to snapshot it. The latency is the tool, not the page. That number decides the table below. It is a cost, not a ban.
 
-Install: `npm i -g agent-browser && agent-browser install`
+## Pick by task shape
 
-## Start here
+| Task | Use | How |
+|---|---|---|
+| The user named a tool ("use agent-browser", "use playwright") | **the tool they named** | see [When the user names the tool](#when-the-user-names-the-tool) |
+| Read text off a page | CDP `innerText` | `connectOverCDP('http://127.0.0.1:9333')` → `page.evaluate(() => document.body.innerText)`. 1.4 KB, vs 28 KB for a snapshot |
+| Recurring, on a timer, or selectors already known | hand-written CDP script | connect to `:9333`, own page, parse, close. ~1.4 s per run |
+| Unknown web page, must click or fill, needs the real login | `playwright-cli` extension mode | `playwright-cli attach --extension=chrome`, then `playwright-cli -s=chrome <goto\|snapshot\|click\|fill>`. `detach` when done, never `close` |
+| **Electron desktop app** (Slack, VS Code, Discord, Figma, Notion, Spotify) | **agent-browser** | [below](#electron-desktop-apps) — nothing else here does this |
+| **Standalone API client derived from a site's traffic** | **agent-browser** | `agent-browser skills get derive-client` |
+| **Cloud browser** (Vercel Sandbox microVM, AWS Bedrock AgentCore) | **agent-browser** | `agent-browser skills get vercel-sandbox` / `agentcore` |
+| Structured QA / dogfood sweep of a web app | agent-browser, budgeting ~3 min per navigation | `agent-browser skills get dogfood` |
 
-This file is a discovery stub, not the usage guide. Before running any `agent-browser` command, load the actual workflow content from the CLI:
+Port **9333** is the logged-in CDP profile. Port **9334** belongs to a watcher — leave it alone.
+
+## When the user names the tool
+
+Run the tool they named. State the measured cost in one sentence and offer the faster path once; if they don't take it, proceed with what they asked for.
+
+Never swap in a different tool and report the result as if you had used theirs. A slower tool the user chose is not a failure condition — silently substituting is.
+
+## Electron desktop apps
+
+The non-obvious part: **an already-running Electron app exposes no debug port.** Quit it fully and relaunch with the flag, or nothing will be listening.
 
 ```bash
-agent-browser skills get core             # start here — workflows, common patterns, troubleshooting
-agent-browser skills get core --full      # include full command reference and templates
+# 1. Find the exe (paths vary by app and installer)
+find "$LOCALAPPDATA" -maxdepth 3 -iname '*.exe' 2>/dev/null \
+  | grep -iE 'slack|discord|figma|notion|spotify|Code\.exe'
+
+# 2. Quit the app, then relaunch it with a debug port
+"$LOCALAPPDATA/slack/slack.exe" --remote-debugging-port=9222
+
+# 3. Drive it
+agent-browser connect 9222
+agent-browser snapshot -i          # accessibility refs (@e5) for clicking
+agent-browser get text <selector>  # or plain CDP on :9222 for a pure read
 ```
 
-The CLI serves skill content that always matches the installed version, so instructions never go stale. The content in this stub cannot change between releases, which is why it just points at `skills get core`.
+Once the app is on a CDP port, a raw CDP script works too and is far cheaper — use `snapshot` only while you still need refs. `agent-browser skills get electron` (or `slack`) for the full guide.
 
-## Specialized skills
+## Before running any agent-browser command
 
-Load a specialized skill when the task falls outside browser web pages:
+Load the version-matched guide. This file ships with the CLI and cannot change between releases:
 
 ```bash
-agent-browser skills get electron          # Electron desktop apps (VS Code, Slack, Discord, Figma, ...)
-agent-browser skills get slack             # Slack workspace automation
-agent-browser skills get dogfood           # Exploratory testing / QA / bug hunts
-agent-browser skills get derive-client     # Record a HAR, derive a standalone API client for a site
-agent-browser skills get vercel-sandbox    # agent-browser inside Vercel Sandbox microVMs
-agent-browser skills get agentcore         # AWS Bedrock AgentCore cloud browsers
+agent-browser skills get core          # workflows, patterns, troubleshooting
+agent-browser skills get core --full   # + full command reference
+agent-browser skills list              # everything on the installed version
 ```
 
-Run `agent-browser skills list` to see everything available on the installed version.
+## Maintenance
 
-## Why agent-browser
-
-- Fast native Rust CLI, not a Node.js wrapper
-- Works with any AI agent (Cursor, Claude Code, Codex, Continue, Windsurf, etc.)
-- Chrome/Chromium via CDP with no Playwright or Puppeteer dependency
-- Accessibility-tree snapshots with element refs for reliable interaction
-- Sessions, authentication vault, state persistence, video recording
-- Specialized skills for Electron apps, Slack, exploratory testing, cloud providers
-
-## Observability Dashboard
-
-The dashboard runs independently of browser sessions on port 4848 and can also be opened through a proxied or forwarded URL such as `https://dashboard.agent-browser.localhost`. Agents should stay on the dashboard origin: session tabs, status, and stream traffic are proxied internally, so session ports do not need to be exposed.
+`npm i -g agent-browser && agent-browser install` overwrites this file with the vendor stub. It is tracked in the `~/.claude/skills` git repo — restore with `git checkout -- agent-browser/SKILL.md`. Re-measure the latency after an upgrade and update the number above.
