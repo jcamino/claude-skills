@@ -11,19 +11,34 @@ you report is pinned to the exact thing being bought, or it is not reported.
 
 ## Required output
 
-One row per candidate. Every cell gets a value. Where you could not establish one, the
-cell reads `unverified` — that is a finding to say out loud, not a gap to leave blank.
+**Your answer contains this table.** Copy the skeleton and fill it — one column per
+candidate, including the ones you are rejecting.
 
-| Field | What goes in it |
-|---|---|
-| **Variant / SKU** | the exact ID being bought — the variant, not the listing |
-| **Price** | for that SKU |
-| **Stock** | for that SKU |
-| **Standard delivery** | date + cost, for the user's postcode |
-| **Expedited delivery** | date + cost, or `not available` |
-| **Rating** | stars **and** review count, both |
-| **Requirements** | each requirement the user named, and the source that confirms it |
-| **Confidence** | `verified — <source>` or `inferred` |
+| | Candidate A | Candidate B |
+|---|---|---|
+| **Variant / SKU** | | |
+| **Price** | | |
+| **Stock** | | |
+| **Standard delivery** | | |
+| **Expedited delivery** | | |
+| **Rating** | | |
+| **Requirements** | | |
+| **Confidence** | | |
+
+Every cell gets a value. A cell you could not establish reads `unverified` — that is a
+finding to report, not a gap to leave blank.
+
+- **Variant / SKU** — the exact ID being bought: the variant, not the listing
+- **Price**, **Stock** — for that SKU, not for the listing it sits under
+- **Standard / Expedited delivery** — date **and** cost for the user's postcode, or
+  `not available`
+- **Rating** — stars **and** review count, both. A listing-level rating is shared across
+  every variant under it, so when the number does not belong to the SKU in the column,
+  write that in the cell
+- **Requirements** — each requirement the user named, and the source that confirms it
+- **Confidence** — `verified — <source>` or `inferred`
+
+Prose around the table is fine. Prose instead of the table is not.
 
 Then rank on what the user actually asked for, and say plainly when the best-spec option
 fails on logistics.
