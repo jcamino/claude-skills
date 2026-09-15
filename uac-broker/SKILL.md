@@ -74,8 +74,11 @@ reason from `logs/audit.jsonl`, then report what was denied and what is left und
 what state it left (a half-stopped service, a partial install), then decide. A second
 targeted call, like `taskkill /PID <pid> /F` after a stuck `Restart-Service`, is fine.
 
-`-DryRun` composes and queues without notifying or executing — use it to confirm a
-spelling before spending a notification.
+`-DryRun` asks the broker for its decision and stops there: nothing executes, and no ntfy
+or Pushover message is sent. It exits **0** if the command would run without asking and
+**2** if it would page; 125/126/127 keep their meanings. Use it to confirm a spelling
+before spending a notification. Until 2026-09-15 `uac.ps1` silently ignored the flag and
+ran allowlisted commands for real, so older notes may say not to trust it.
 
 ## Hazards
 
