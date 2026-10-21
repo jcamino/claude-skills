@@ -77,7 +77,9 @@ handing a payment-ready form to the user over RDP.
 
 ```js
 // stopBefore: 'cart' | 'payment' | 'confirm' | null
-// null means money is reachable and is passed ONLY when ARMED && !dryRun.
+// null means money is reachable. Unattended runs: pass it ONLY when ARMED && !dryRun.
+// Live in-session buy: pass it after the user said "buy it" to the summary you showed
+// and the live checkout re-verified against it. No ARMED file in that case.
 async function drive(page, opts) {
   if (opts.stopBefore === undefined) throw new Error('stopBefore is required');
   ...

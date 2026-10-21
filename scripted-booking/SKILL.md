@@ -1,6 +1,6 @@
 ---
 name: scripted-booking
-description: Use when booking, reserving, or checking out something real on a website - tickets, tours, boats, trains, hotels, events - especially when payment details are involved. Drives the funnel with a scripted browser so card data never enters agent context, stops at a declared point short of money, and reports the cancellation terms before anyone pays. Triggers include "book X for me", "reserve two seats", "buy the tickets", "fill the reservation form", "check if the slot is available", or any request naming a card.
+description: Use when booking, reserving, or checking out something real on a website - tickets, tours, boats, trains, hotels, events - especially when payment details are involved. Drives the funnel with a scripted browser so card data never enters agent context, places a live order once the user approves the shown total in-session (no ARMED file), stops short of money on unattended watcher/poller runs (ARMED file), and reports the cancellation terms before anyone pays. Triggers include "book X for me", "reserve two seats", "buy the tickets", "fill the reservation form", "check if the slot is available", or any request naming a card.
 ---
 
 # Scripted booking
@@ -39,34 +39,57 @@ const r = await page.evaluate(fillCardFn, card);   // returns {okN, okC, okE} on
 Never through argv, never through an env var you echo, never through a log line,
 never through a tool result you will read.
 
-**2. You do not arm the money. A human does.**
+**2. Money needs a human "yes" to a total they have seen.**
 
-Every funnel driver takes `stopBefore: 'cart' | 'payment' | 'confirm' | null`.
-`null` — money reachable — is passed only when an `ARMED` state file already
-exists, put there by a human out of band, and `dryRun` is false. A script that
-can reach the pay button by forgetting a flag is a bug, not a convenience. Name
-the point of no return in a comment at the one call site that can cross it.
+There are exactly two ways that yes arrives. Decide which one you are in before
+anything else — confusing them has cost Javier three checkouts (2026-10-07 Amazon,
+2026-10-21 Amazon and Esslinger), each parked at the pay button waiting for an
+`ARMED` file he had no reason to create.
+
+**(a) Live purchase — Javier is in this session.** This is the normal case for any
+one-off buy: Amazon, retail, a tour, a ticket he is booking with you right now.
+Show the summary once — item(s), quantity, date/slot, ship-to, total, card
+last-4, and for bookings the rule-3 terms. When he answers "buy it" / "ship it" /
+"book it" / "go" **after seeing that summary**, that reply *is* the
+authorization. **No `ARMED` file. Do not mention one, do not ask him to make
+one.** Then:
+
+- Re-read the live checkout just before the click and compare it to the summary
+  he approved: total, card, address, item count. Any mismatch → stop and re-show.
+- Click. Page him the moment a 3DS / SafeKey frame appears.
+- Report the order/confirmation number.
+
+If "buy it" came *before* he saw a total (e.g. "buy whatever's cheapest"), show
+the summary and get the yes on it — once, not repeatedly.
+
+**(b) Unattended run — a watcher, poller, scheduled job, or any script that may
+reach the pay button while nobody is reading the session.** Here, and only here,
+the `ARMED` state file is the authorization. Every unattended funnel driver takes
+`stopBefore: 'cart' | 'payment' | 'confirm' | null`; `null` is reached only when
+an `ARMED` file already exists, put there by a human out of band, and `dryRun` is
+false. A script that can reach the pay button by forgetting a flag is a bug, not a
+convenience. Name the point of no return in a comment at the one call site that
+can cross it.
 
 **Never create the `ARMED` file yourself.** A file you wrote to satisfy your own
-check is not a gate, it is a comment. Writing it forges the record of a decision
-a human did not make.
+check is not a gate, it is a comment.
 
-The request to book is not the authorization to charge. "Book it, card's in
-`payments.env`, I'm about to go offline" is what makes the work worth doing; it
-is not the second signature on the money. A customer who cannot be reached is
-the argument for stopping at payment-ready — not for crossing the line while
-they cannot see it.
+"Book it, card's in `payments.env`, I'm about to go offline" is case (b), not (a):
+he has not seen the final total and will not be there when it is charged. Stop at
+payment-ready. A customer who cannot be reached is the argument for stopping —
+not for crossing the line while they cannot see it.
 
-Stopping short of money is a finished job, not a failed one. What you hand back:
-the funnel at payment-ready (hold released if it would expire before they read
-you), the exact total, the three policy facts from rule 3, and the single action
-left for the human.
+Stopping short of money in case (b) is a finished job, not a failed one. What you
+hand back: the funnel at payment-ready (hold released if it would expire before
+they read you), the exact total, the three policy facts from rule 3, and the
+single action left for the human.
 
 | Rationalization | Reality |
 |---|---|
-| "They said just book it." | The instruction is the request. `ARMED` is the authorization. One party supplying both, inside a chat window, is the exact failure this rule exists for. |
+| "The skill says ARMED, so I'll park this live buy and ask him to create the file." | Wrong case. He is here and said buy it after seeing the total — that is case (a). Re-verify and click. |
+| "They said just book it" — and they have not seen the total, or are going offline. | Case (b). The instruction is the request, not the authorization. Stop at payment-ready. |
 | "They're offline for hours and can't confirm." | Then deliver payment-ready plus the report before they land. Unreachable is not consent. |
-| "Date, time, quantity and card were all unambiguous, and I verified availability live." | Getting the order right is not permission to pay for it. A correct charge you were not authorized to make is still a charge someone has to reverse. |
+| (Case b) "Date, time, quantity and card were all unambiguous, and I verified availability live." | Getting the order right is not permission to pay for it. A correct charge you were not authorized to make is still a charge someone has to reverse. |
 | "The instruction clearly means to arm it, so I'll write the `ARMED` file." | You are not the human the file represents. |
 | "The card is sitting right there in the stack." | Card availability is a convenience of the tooling, never an authorization. |
 | "If I stop, the slot might sell out." | Report the scarcity and let them choose. Almost nothing sells out in the minutes it takes to send a reply. |
@@ -75,11 +98,13 @@ left for the human.
 **Red flags — stop and hand back instead:**
 
 - You are about to create, touch, or overwrite an `ARMED` file
-- You are changing `stopBefore` to `null` in a script you wrote this session
-- The words "explicit instruction", "unambiguous", or "clearly authorized" are
-  doing the work in your reasoning about paying
+- You are changing `stopBefore` to `null` in a script that will run unattended
+- The live checkout no longer matches the summary he approved
 - You are reasoning about what the customer *would* say if they were reachable
 - The customer is unreachable and you are still moving toward the pay button
+
+**Red flag the other way:** you are asking a present user, who already said buy
+it to a total he saw, for an `ARMED` file or a second confirmation. Place the order.
 
 Violating the letter of this rule is violating the spirit of it.
 
@@ -127,7 +152,8 @@ troubleshooter → human. Concretely:
    `innerText` while the truth is `button[disabled]`. Dump classes and attributes.
 3. **Map the gate.** Note exactly where login, quantity, and slot selection live.
    Many engines expose none of it publicly.
-4. **Fill everything that is not payment.** Stop. Report. Hand over.
+4. **Fill everything that is not payment.** Show the summary. Live (case a): on
+   his yes, re-verify and pay. Unattended (case b): stop, report, hand over.
 
 ## Traps seen in the wild
 
@@ -174,8 +200,9 @@ session themselves than have the image exist at all.
 - [ ] Confirmed the exact requested date/time/quantity is available, from DOM state
 - [ ] Reported cancellation deadline, change policy, and operator-cancellation refund
 - [ ] Card path is `page.evaluate(fillCardFn, card)` or the human's own hands
-- [ ] `stopBefore` set explicitly; any `ARMED` file predates this session and was
-      not written by you
+- [ ] Named the case: (a) live — summary shown, user said buy it, checkout
+      re-verified; or (b) unattended — `stopBefore` explicit, any `ARMED` file
+      predates this session and was not written by you
 - [ ] Known the card's 3DS mode before arming
 - [ ] Cart hold released, or its expiry stated in the report
 - [ ] Screenshots masked or declined
