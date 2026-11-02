@@ -16,6 +16,7 @@ candidate, including the ones you are rejecting.
 
 | | Candidate A | Candidate B |
 |---|---|---|
+| **Link** | | |
 | **Variant / SKU** | | |
 | **Price** | | |
 | **Stock** | | |
@@ -28,6 +29,9 @@ candidate, including the ones you are rejecting.
 Every cell gets a value. A cell you could not establish reads `unverified` — that is a
 finding to report, not a gap to leave blank.
 
+- **Link** — the full URL of that SKU's own page, written out raw
+  (`https://www.amazon.com/dp/B0FD1TT96X`) so it is clickable as-is: the variant's page,
+  not a search result or the parent listing
 - **Variant / SKU** — the exact ID being bought: the variant, not the listing
 - **Price**, **Stock** — for that SKU, not for the listing it sits under
 - **Standard / Expedited delivery** — date **and** cost for the user's postcode, or
@@ -42,6 +46,10 @@ Prose around the table is fine. Prose instead of the table is not.
 
 Then rank on what the user actually asked for, and say plainly when the best-spec option
 fails on logistics.
+
+**Your first line is the pick and its link**: name, price, raw URL. The user should be able
+to click and buy without reading past it. Every alternative you name in prose carries its
+URL too.
 
 ## The four defaults that lie
 
@@ -87,6 +95,7 @@ category, spend the budget on what works, and say why.
 - Any number that came from a title or ad copy
 - A price for one size next to stock for another
 - A recommendation carrying no review count
+- An ASIN, part number or SKU with no URL beside it
 
 ## Tooling
 
