@@ -5,9 +5,13 @@
 #   powershell -ExecutionPolicy Bypass -File launch.ps1 -Count 5
 #   powershell -ExecutionPolicy Bypass -File launch.ps1 -Count 3 -Prefix fleet -Dir C:\Users\jcamino\Code\npb-watch
 #   powershell -ExecutionPolicy Bypass -File launch.ps1 -Server -Capacity 5   # on-demand server, no per-session windows
+#   powershell -ExecutionPolicy Bypass -File launch.ps1 -Count 1 -Prompt 'Read brief.md and do what it says.'
 #
 # Each session is named "<Prefix>-<n>" in the Remote Control list. Windows
 # stay open (-NoExit) so a crashed session leaves its output readable.
+# -Prompt is each session's first message. Keep it to one line with no double
+# quotes (it rides a -Command string into Windows PowerShell 5.1, which does not
+# escape them for native programs); point it at a file for anything longer.
 param(
   [int]$Count = 5,
   [string]$Prefix = ("win-" + (Get-Date -Format 'MMdd-HHmm')),
@@ -15,8 +19,10 @@ param(
   [string]$PermissionMode = 'bypassPermissions',
   [int]$StaggerSec = 2,
   [switch]$Server,
-  [int]$Capacity = 5
+  [int]$Capacity = 5,
+  [string]$Prompt = ''
 )
+if ($Prompt -match '[\r\n"]') { throw '-Prompt must be one line without double quotes; point it at a file instead' }
 
 # This script is usually run from INSIDE a Claude Code session (Bash tool), so
 # it inherits that session's identity. Claude Code reads CLAUDE_CODE_CHILD_SESSION
@@ -58,6 +64,7 @@ $launched = @()
 for ($i = 1; $i -le $Count; $i++) {
   $name = "$Prefix-$i"
   $cmd = "claude --remote-control '$name' --permission-mode $PermissionMode"
+  if ($Prompt) { $cmd += " '" + $Prompt.Replace("'", "''") + "'" }
   $p = Start-Process powershell -ArgumentList '-NoExit', '-Command', $cmd -WorkingDirectory $Dir -PassThru
   $launched += [pscustomobject]@{ n = $i; name = $name; windowPid = $p.Id }
   Write-Host ("started {0}  (window pid {1})  in {2}" -f $name, $p.Id, $Dir)
