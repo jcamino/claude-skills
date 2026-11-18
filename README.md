@@ -4,8 +4,8 @@ Personal [Claude Code](https://claude.com/claude-code) skills. This repo *is*
 `~/.claude/skills`, so the working copy is what Claude actually loads — there is
 no build or sync step.
 
-Private on purpose: several skills hardcode this machine's paths
-(`C:\Users\jcamino\...`) and personal hostnames.
+Several skills hardcode this machine's paths (`C:\Users\jcamino\...`), ports and
+local tools, so treat them as examples to adapt rather than drop-in installs.
 
 ## Skills
 
