@@ -1,14 +1,20 @@
 ---
 name: agent-browser
-description: Use when a task will fetch, read, scrape, click, fill or log into a web page, or drive an Electron desktop app on this machine - including deciding whether a browser is needed at all. Covers screenshots, QA and dogfood sweeps, Slack/VS Code/Discord/Figma automation, deriving a standalone API client from a site's own traffic, and cloud browsers (Vercel Sandbox, AWS AgentCore). Also use when choosing between curl_cffi, a raw CDP script, an own-browser Playwright script, agent-browser, and playwright-cli.
+description: Use when a task will fetch, read, scrape, click, fill or log into a web page, or drive an Electron desktop app on this machine - including deciding whether a browser is needed at all. Covers screenshots, QA and dogfood sweeps, Slack/VS Code/Discord/Figma automation, deriving a standalone API client from a site's own traffic, and cloud browsers (Vercel Sandbox, AWS AgentCore). Also use when choosing between curl_cffi, a raw CDP script, an own-browser Playwright script, Patchright, agent-browser, and playwright-cli - and whenever the user says "patchright" or "stealth", or a site is behind DataDome, Kasada, Akamai or PerimeterX.
 allowed-tools: Bash(agent-browser:*), Bash(npx agent-browser:*), Bash(playwright-cli:*), Bash(curl:*), Bash(python:*), Bash(pwsh:*), Bash(bash ~/.claude/skills/agent-browser/preflight.sh)
 hidden: true
 ---
 
 # agent-browser
 
-Four browser paths live on this machine. This file routes between them and covers the
+Six browser paths live on this machine (`pb` has its own skill). This file routes between them and covers the
 cases only agent-browser can do. It does not replace the CLI's own guides.
+
+> **"Patchright" means Patchright. It is not Playwright.** It is a separate,
+> already-installed Python package (`patchright` 1.63, `from patchright.sync_api import
+> sync_playwright`) that patches the detection leaks Playwright has. Writing
+> `from playwright…`, or reaching for playwright-cli, when the user asked for Patchright is
+> substituting a tool, and on the sites they ask for it on it fails. See [Patchright](#patchright).
 
 ## Preflight — run this first
 
@@ -78,7 +84,9 @@ Also note `/json/new` requires **PUT**, not GET, on current Chrome (`405` otherw
 | The user named a tool ("use agent-browser", "use playwright") | **the tool they named** | see [When the user names the tool](#when-the-user-names-the-tool) |
 | **Read a page you are not logged into** | **no browser at all** | `curl`; on 403/302/000 retry with `curl_cffi`. 0.1–1.3 s. See [No browser needed](#no-browser-needed) |
 | Read text off a page that needs the login | CDP `innerText` | connect to the **live** logged-in port from preflight → `page.evaluate(() => document.body.innerText)`. 1.4 KB, vs 28 KB for a snapshot |
-| **Public page, must click or fill, no login needed** — the most common interactive shape | **agent-browser**, or an own-browser Playwright script | Neither needs a CDP port. `agent-browser --session <name> open <url>` then `find text "<label>" click` is fewest calls (~6 s total); a Python `chromium.launch()` script is better when the logic is complex or you want zero daemon. See [Own-browser script](#own-browser-script) |
+| **Drive a site interactively**: a shop, checkout or booking form, a login, a site's own search form, any multi-step flow on a page whose structure is not known yet, including bot-walled ones | **`pb`** (the `pb` skill) | One Patchright Chrome stays open; short commands (`pb open`, `pb view`, `pb click`, `pb fill`, `pb text`, `pb card`). Fastest and cheapest driver measured here (2026-11-15/16): a blind checkout in 1:22 to 3:00 with any model, about 3x fewer tokens than Claude in Chrome, and it types cards without showing them. Needs no CDP port |
+| **Public page, one or two clicks, no login** | agent-browser, or an own-browser Playwright script | Neither needs a CDP port. `agent-browser --session <name> open <url>` then `find text "<label>" click` is fewest calls (~6 s total); a Python `chromium.launch()` script is better when the logic is complex or you want zero daemon. See [Own-browser script](#own-browser-script). Anything longer: `pb` |
+| **Bot-walled page in a script** (DataDome, Kasada, Akamai/PerimeterX past the read), or the user said "patchright"/"stealth" | **Patchright** | interactively, that is `pb` (it is Patchright). For a script, own headful Chrome with a persistent profile. See [Patchright](#patchright) |
 | Recurring, on a timer, or selectors already known | hand-written CDP script | connect to the live port, own page, parse, close. Cheapest per run once selectors are known |
 | Unknown page, must click/fill, needs the real login **and no debug port is listening** | `playwright-cli` extension mode | [below](#playwright-cli) |
 | **Electron desktop app** (Slack, VS Code, Discord, Figma, Notion, Spotify) | **agent-browser** | [below](#electron-desktop-apps) — nothing else here does this |
@@ -170,6 +178,52 @@ with io.open("out.json", "w", encoding="utf-8") as f:
 
 `expect_navigation()` matters: a bare `.click()` returns before the next page exists, so
 the read that follows silently scrapes the old DOM.
+
+## Patchright
+
+Python `patchright` 1.63 is installed (`pip`, plus `patchright.exe` in Python313\Scripts).
+It is a drop-in fork of Playwright's Python API: **change the import, nothing else.**
+
+```python
+from patchright.sync_api import sync_playwright   # NOT playwright.sync_api
+
+with sync_playwright() as pw:
+    ctx = pw.chromium.launch_persistent_context(
+        user_data_dir=PROFILE,        # a per-site dir you keep; cookies/captcha clears persist
+        channel="chrome",             # the real installed Chrome, not bundled Chromium
+        headless=False,               # headful - headless is what gets flagged
+        no_viewport=True)             # no fixed viewport fingerprint
+    pg = ctx.new_page()
+    ...
+    ctx.close()
+```
+
+Smoke-tested 2026-10-21: example.com in **3.2 s**, `navigator.webdriver` → `False`.
+
+Where it is the only thing that has worked (each failed on playwright-cli attach, plain
+Playwright and agent-browser first):
+
+- **Zocdoc** (DataDome) — profile `%TEMP%\onemed\zd\profile` (lives in %TEMP%, so it can
+  vanish; its driver `zd.py` already has, as of 2026-10-21). Details in the `health`
+  project memory `zocdoc-access`.
+- **Twitch** (Kasada, error 5025) — profile `~/.patchright-twitch`, plus humanized
+  mouse/keys; reuse `Human` + `login()` from `~/Code/buy/workflows/twitch-prime-sub/twitch_prime.py`.
+  Details in the `buy` project memory `twitch-access`.
+
+Other working Patchright scripts to copy from before writing a new one (found 2026-10-21):
+Best Buy / Walgreens / Mouser in `~/Code/buy/sr626_scripts/` (`bb_pw.py` is the shared
+helper), Robinhood in `~/Code/taxes/robinhood/rh_*.py`, and
+`~/Code/flights/workflows/seat3u/dx_solver.py`.
+
+Rules:
+
+- Use **one persistent profile per site** and reuse it. A captcha solved once in the
+  window persists in the profile; a fresh profile means a fresh captcha.
+- Patchright has **no Node package installed here**. If you need it from Node, say so; do
+  not quietly fall back to `require('playwright')`.
+- Headful means a window opens on Javier's desktop. That is expected; do not "fix" it to
+  headless.
+- The cp1252 `print()` trap below applies here too — run with `PYTHONIOENCODING=utf-8`.
 
 ## Traps that cost hours
 
@@ -314,6 +368,10 @@ path once; if they don't take it, proceed with what they asked for.
 
 Never swap in a different tool and report the result as if you had used theirs. A slower
 tool the user chose is not a failure condition — silently substituting is.
+
+Tools that sound alike are still different tools: **Patchright ≠ Playwright ≠
+playwright-cli ≠ the Playwright MCP.** If the named tool's package seems missing, check
+(`pip show patchright`) and say what you found. Do not decide the nearest lookalike will do.
 
 ## Electron desktop apps
 

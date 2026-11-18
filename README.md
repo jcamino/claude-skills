@@ -11,11 +11,13 @@ local tools, so treat them as examples to adapt rather than drop-in installs.
 
 | Skill | What it does |
 | --- | --- |
-| `agent-browser` | Wrapper notes for the agent-browser CLI. Currently carries a local override telling Claude *not* to reach for it — measured ~3 min per navigation on this machine. |
+| `agent-browser` | The browser router: picks curl_cffi, a CDP script, `pb`, Patchright, agent-browser or playwright-cli by task shape, and covers what only agent-browser does (Electron apps, cloud browsers, deriving an API client). |
 | `build-japan` | Rebuild the japan site from markdown, diff the built output, verify in a real browser at mobile width. |
 | `claude-fleet` | Launch N Claude Code sessions on Windows via `launch.ps1`, scrubbing the inherited `CLAUDE_CODE_CHILD_SESSION` markers so spawned sessions keep their transcripts. |
 | `declaude` | Copy-editor pass that finds LLM-sounding prose and proposes plainer rewrites, via Gemini through the `agy` CLI. Never changes facts, numbers, names or quotes. |
 | `hotel-room-search` | Room-level hotel search — bed configuration, free-cancellation deadlines, thin holiday availability. Scripts scrape Booking.com and Airbnb over CDP. |
+| `otp-fetch` | Arms an IMAP IDLE listener before a site sends an emailed one-time code, then prints the code. Code in `scripts/otp.js` (`npm ci` there first). |
+| `pb` | Persistent Patchright browser driven by short shell commands (`~/bin/pb`), for interactive flows and checkouts; card typed from the secrets file, never shown. Stable copy of `~/Code/buy/browserbench/tools/pb.py`. |
 | `researching-purchases` | Online purchase research: price, stock, sizing, compatibility, delivery against a deadline. |
 | `scripted-booking` | Drives real booking funnels with a scripted browser so card data never enters agent context. Places live orders on the user's in-session "buy it"; unattended runs stop short of payment unless a human-made `ARMED` file exists. Reports cancellation terms first. |
 | `scripting-browser-workflows` | Turns a workflow driven once by hand into replayable code: a recipe of what was observed, scripts for the no-browser / CDP / CLI tiers, and a bench that fails them on a page that changed. Ships an offline fixture site carrying nine real traps. |

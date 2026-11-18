@@ -2,6 +2,12 @@
 /ui-ux-pro-max
 /web-design-guidelines
 
+# Skills synced in by the Claude app, not ours to version
+/synced/
+
+# Node dependencies (run npm ci where a package.json lives)
+node_modules/
+
 # Python bytecode
 __pycache__/
 *.py[cod]

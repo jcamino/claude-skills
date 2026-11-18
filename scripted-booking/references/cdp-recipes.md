@@ -2,13 +2,15 @@
 
 `playwright-core` lives at
 `C:/Users/jcamino/Code/npb-watch/node_modules/playwright-core` (Windows path —
-Node will not resolve `/c/...`). CDP endpoint `http://127.0.0.1:9333`.
+Node will not resolve `/c/...`). CDP endpoint: the live logged-in port from
+`bash ~/.claude/skills/agent-browser/preflight.sh`, in `CDP` below. Never hardcode it.
 
 ## Read a page cheaply
 
 ```js
 const { chromium } = require('C:/Users/jcamino/Code/npb-watch/node_modules/playwright-core');
-const browser = await chromium.connectOverCDP('http://127.0.0.1:9333');
+const CDP = process.env.CDP;                      // e.g. 'http://127.0.0.1:9222', from preflight
+const browser = await chromium.connectOverCDP(CDP);
 const page = await browser.contexts()[0].newPage();
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 await page.waitForTimeout(3000);

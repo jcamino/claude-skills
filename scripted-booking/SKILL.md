@@ -123,16 +123,24 @@ remains. Never quietly shift to the adjacent slot.
 
 ## Tool choice
 
-Follow `~/.claude/CLAUDE.md` § Browser automation. For booking work that means:
+Follow `~/.claude/CLAUDE.md` § Browser automation and the routing table in the
+`agent-browser` skill. For booking work that means:
 
-- **Reading a page** — `document.body.innerText` over CDP. ~1.4 KB vs 28 KB for
-  a snapshot. Never snapshot to read.
-- **Driving a known funnel** — hand-written `playwright-core` script against
-  `chromium.connectOverCDP('http://127.0.0.1:9333')`. Own page, act, `page.close()`,
-  `browser.close()`. Port 9333 is the logged-in profile; **9334 belongs to a
-  watcher, leave it alone**.
-- **Mapping an unknown funnel once** — `@playwright/cli` attached to Chrome, snapshot
-  to `.playwright-cli/*.yml`, grep the file, never cat it. Then write the script.
+- **Driving a funnel in-session** (case a, the user is here to approve the total):
+  **`pb`**, see the `pb` skill. One Patchright Chrome stays open between short shell
+  commands, and `pb card` types the card from `~/Code/payments.env` with the number,
+  CVV and expiry masked in everything it prints, logs and screenshots. Measured
+  2026-11-15/16 on a live checkout: 1:22 to 3:00 blind with any model, against 14 min
+  for one-shot scripts. Claude in Chrome used about 3x the tokens and refuses to type
+  a card. One profile per site (`pb start --profile <site>`).
+- **Reading a page**: curl, then `curl_cffi` on 403/302/000; `pb text` when it needs
+  the browser session. Never snapshot to read.
+- **Unattended watcher or poller** (case b, behind the ARMED gate): a hand-written
+  script, because no agent is there to drive `pb`. Map the funnel once with `pb`, then
+  write either a CDP script against the live logged-in port (resolve it with
+  `bash ~/.claude/skills/agent-browser/preflight.sh`, never hardcode it: 9333 died on
+  2026-09-09) or a Patchright script for a bot-walled site. **9334 belongs to a
+  watcher, leave it alone.**
 - `playwright-core` is not installed globally. Require it by absolute path from a
   stack that has it: `C:/Users/jcamino/Code/npb-watch/node_modules/playwright-core`.
   Use a **Windows** path — Node does not resolve Git Bash `/c/...`.

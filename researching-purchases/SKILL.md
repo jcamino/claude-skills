@@ -110,6 +110,12 @@ Akamai-fronted retail. Falls down on two things: a Cloudflare managed challenge,
 shields that answer with a success status and an empty body (Booking.com: `202`, 3.9 KB),
 so check body length, not just the status. Measurements: `~/Code/CURL.md`.
 
+When curl_cffi is not enough (a managed challenge, a ZIP or store that has to be set
+in a form, stock or delivery dates rendered by JS, endless lists), use **`pb`** (the
+`pb` skill): `pb start --profile <site> URL`, set the destination, then `pb text` or
+`pb find` to read prices, stock and dates as text. It keeps the profile, so the store
+and ZIP stay set on the next visit. Do not use it to pay: that is `scripted-booking`.
+
 - `references/browser-setup.md` — site-agnostic browser pattern
 - `references/amazon.md` — Amazon-specific selectors and ASIN handling
 
