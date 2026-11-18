@@ -221,6 +221,9 @@ Answers that ask for a step from you:
    to finish (3DS, a human check); otherwise `pb stop` when done.
 9. **Plain-HTTP sites** open (Chrome's own warning is off in pb's profiles) and are named in a NOTE. Do not type a
    password on one.
+10. **pb's profiles have no iCloud Passwords.** A login whose password lives in iCloud Keychain is filled in the main
+   Chrome with the `icloud-passwords` skill (`icloud.py pick USERNAME`), which also unlocks the extension when it
+   asks for a code. Never ask Javier to RDP in to read that code.
 
 A Haiku or Sonnet subagent at medium effort is enough to drive pb; give it this skill's command list and the rules,
 and check its result yourself with `pb review` / `pb expect` (or `pb text`, `pb items` for a read) before you report.

@@ -16,6 +16,7 @@ local tools, so treat them as examples to adapt rather than drop-in installs.
 | `claude-fleet` | Launch N Claude Code sessions on Windows via `launch.ps1`, scrubbing the inherited `CLAUDE_CODE_CHILD_SESSION` markers so spawned sessions keep their transcripts. |
 | `declaude` | Copy-editor pass that finds LLM-sounding prose and proposes plainer rewrites, via Gemini through the `agy` CLI. Never changes facts, numbers, names or quotes. |
 | `hotel-room-search` | Room-level hotel search — bed configuration, free-cancellation deadlines, thin holiday availability. Scripts scrape Booking.com and Airbnb over CDP. |
+| `icloud-passwords` | Unlocks the iCloud Passwords Chrome extension with no human: reads the capture-protected code from iCloud's helper window by UI Automation and types it, fills saved logins, and reconnects an RDP-disconnected session via the UAC broker. |
 | `otp-fetch` | Arms an IMAP IDLE listener before a site sends an emailed one-time code, then prints the code. Code in `scripts/otp.js` (`npm ci` there first). |
 | `pb` | Persistent Patchright browser driven by short shell commands (`~/bin/pb`), for interactive flows and checkouts; card typed from the secrets file, never shown. Stable copy of `~/Code/buy/browserbench/tools/pb.py`. |
 | `researching-purchases` | Online purchase research: price, stock, sizing, compatibility, delivery against a deadline. |

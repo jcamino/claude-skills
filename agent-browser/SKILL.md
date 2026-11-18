@@ -16,6 +16,11 @@ cases only agent-browser can do. It does not replace the CLI's own guides.
 > `from playwright…`, or reaching for playwright-cli, when the user asked for Patchright is
 > substituting a tool, and on the sites they ask for it on it fails. See [Patchright](#patchright).
 
+> **iCloud Passwords locked or asking for a code in the main Chrome? Never ask Javier to RDP
+> in for it.** Run the `icloud-passwords` skill (`python ~/.claude/skills/icloud-passwords/scripts/icloud.py unlock --title PART`):
+> it reads the capture-protected code by UI Automation and types it. `pick USERNAME` fills a
+> saved login. The extension is only in the main profile, not in pb/Patchright or CDP profiles.
+
 ## Preflight — run this first
 
 **Ports and installs on this box drift, and this file has rotted before.** On
