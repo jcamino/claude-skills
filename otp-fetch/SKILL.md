@@ -17,7 +17,7 @@ the mail after the fact is a race you lose.
 
 ```bash
 # 1. Arm it in the background FIRST
-node ~/Code/otp-fetch/otp.js --from booking.com --timeout 180 > /tmp/otp.txt &
+node ~/.claude/skills/otp-fetch/scripts/otp.js --from booking.com --timeout 180 > /tmp/otp.txt &
 
 # 2. Now trigger the send-code step in the browser
 
@@ -28,10 +28,10 @@ cat /tmp/otp.txt
 Or, when the browser step is scripted and can wait:
 
 ```bash
-CODE=$(node ~/Code/otp-fetch/otp.js --from booking.com) || exit 1
+CODE=$(node ~/.claude/skills/otp-fetch/scripts/otp.js --from booking.com) || exit 1
 ```
 
-Full options, credentials and extraction rules: `~/Code/otp-fetch/README.md`.
+Full options, credentials and extraction rules: `README.md` in this skill.
 Bare code on stdout, logs on stderr. Exit `0` found · `3` timeout · `2` IMAP
 failure · `1` bad usage.
 

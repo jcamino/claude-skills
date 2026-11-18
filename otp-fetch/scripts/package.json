@@ -1,0 +1,15 @@
+{
+  "name": "otp-fetch",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Wait on IMAP for a one-time code and print it. Armed before the send-code click, so the code never expires in transit.",
+  "main": "otp.js",
+  "bin": { "otp-fetch": "otp.js" },
+  "scripts": {
+    "test": "node test/extract.test.js"
+  },
+  "dependencies": {
+    "imapflow": "^1.0.194",
+    "mailparser": "^3.7.2"
+  }
+}
