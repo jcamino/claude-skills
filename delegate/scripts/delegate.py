@@ -44,6 +44,7 @@ OMP_MODEL_QUOTA = [
     ("gpt-oss", "Antigravity / Google (same quota as agy)"),
     ("tab_", "Antigravity / Google (same quota as agy)"),
     ("grok", "xAI (same quota as grok)"),
+    ("ornith", "ollama, local — free"),
     ("qwen", "ollama, local — free"),
     ("gemma", "ollama, local — free"),
 ]

@@ -34,7 +34,7 @@ Task shape picks the CLI. State the route and the reason out loud before dispatc
 
 | Task shape | CLI | Why | Suggested model | Write | Read |
 |---|---|---|---|---|---|
-| Anything needing a **genuinely read-only** delegate, a specific model, or a free run | `omp` | 38 models across 3 providers, real `--cwd`, real `--tools` allow-list, `--max-time`, and the best cost reporting of the four | `gemini-3.8-flash`, or `qwen3-coder:30b` for free | yes | yes |
+| Anything needing a **genuinely read-only** delegate, a specific model, or a free run | `omp` | 38 models across 3 providers, real `--cwd`, real `--tools` allow-list, `--max-time`, and the best cost reporting of the four | `gemini-3.8-flash`, or `ollama/ornith-9b-32k` for free | yes | yes |
 | Adversarial review, second opinion on a diff or a design | `grok` | Different training, argues back, has `--max-turns`, reports its own dollar cost, and its sandbox works as shipped | CLI default (`grok-4.6-build`) | yes | yes |
 | Bulk mechanical implementation, bounded patch drafting | `codex` | Strongest at applying a spec across many files without inventing scope. Needs `--unsandboxed` | CLI default (`gpt-6-astra`) | yes | yes |
 | Large read-heavy sweep, bulk analysis, "read all of this and tell me X" | `agy` | Big context, cheap flash models. Needs `--unsandboxed` | `gemini-3.8-flash-medium` | yes | yes |
@@ -49,12 +49,27 @@ bill. Routing to omp does not spread load unless you pick the model deliberately
 |---|---|---|
 | `gemini-*`, `claude-*`, `gpt-oss-*` | `google-antigravity` | same as `agy` |
 | `grok-*` | `xai-oauth` | same as `grok` |
-| `qwen*`, `gemma*` | `ollama` | **local, free** |
+| `ornith*`, `qwen*`, `gemma*` | `ollama` | **local, free** |
 
 Run `omp models` for the current list. An `ollama` model costs nothing, which
 makes it the right choice for exercising this script or for bulk work where
 quality matters less than volume. The script prints the resolved quota in its
 announce line, so a mistake is visible before it is spent.
+
+### Local models that are worth using (measured 2026-09-10)
+
+| Model | Use it for | Score |
+|---|---|---|
+| `ollama/ornith-9b-32k` | fast small edits — guards, renames, off-by-one, flags | 7/8 solved, ~30 s median |
+| `ollama/ornith-9b-q8-32k` | a larger implement-from-spec change | 7/8 solved, better partial credit on the big task, 4 GB more VRAM |
+| `ollama/qwen36-35b-a3b-32k` | hard spec-level tasks, when 2-3 minutes per turn is acceptable | 7/8 solved, solves the big task, CPU offload |
+
+Everything else installed locally scored worse or slower in the benchmark and is
+being pruned. gemma3 has no tool support and must not be routed through omp with
+tools. See `C:\Users\jcamino\Code\llmbench\README.md` for the full table. For
+local models the script should pass `--thinking medium` (the benchmark's pinned
+level), and omp's own retry and unexpected-stop features were disabled during
+measurement, so results with them on may differ.
 
 Override the route when the task obviously wants it, but say why.
 
