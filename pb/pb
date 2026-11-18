@@ -1,0 +1,54 @@
+#!/bin/bash
+# pb client, fast path: talks to the running pb daemon straight from bash, with builtins only (no Python start, no
+# subshell), which saves about 0.35 s on every call. Anything unusual (start, help, no daemon running, a working
+# directory or argument it cannot encode) is handed to the Python client in pb.py, which does the same job.
+here="${BASH_SOURCE[0]//\\//}"          # also when started with a Windows path
+case "$here" in */*) here="${here%/*}" ;; *) here="." ;; esac
+[ -f "$here/pb.py" ] || here="$HOME/.claude/skills/pb"       # installed copy on PATH (~/bin/pb): the code lives in the skill
+[ -n "${PB_HOME:-}" ] && [ -f "$PB_HOME/pb.py" ] && here="$PB_HOME"      # tests: run the build in that directory instead
+py() { exec python -I -S "$here/pb.py" "$@"; }
+orig=("$@")
+sess="${PB_SESSION:-}"
+if [ "${1:-}" = "-s" ] && [ $# -ge 2 ]; then sess="$2"; shift 2; fi
+case "${1:-}" in ""|start|help|-h|--help) py "${orig[@]}" ;; esac
+
+# default session = the working directory, spelled the way pb.py spells it (default_session)
+if [ -z "$sess" ]; then
+  p="$PWD"
+  case "$OSTYPE" in msys*|cygwin*)
+    if [[ $p =~ ^/([a-zA-Z])(/.+)$ ]]; then p="${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"; else py "${orig[@]}"; fi ;;
+  esac
+  p="${p,,}"; p="${p//[^a-z0-9]/_}"
+  [ ${#p} -gt 70 ] && p="${p: -70}"
+  sess="cwd-$p"
+fi
+state="$HOME/.pb/$sess.json"
+[ -r "$state" ] || py "${orig[@]}"
+st="$(<"$state")"
+[[ $st =~ \"port\":\ *([0-9]+) ]] || py "${orig[@]}"
+port="${BASH_REMATCH[1]}"
+
+# the request: one line of JSON, {"args": [...], "cwd": "..."}
+json='{"args":['
+sep=""
+for a in "$@" "$PWD"; do
+  case "$a" in *[$'\001'-$'\010'$'\013'$'\014'$'\016'-$'\037']*) py "${orig[@]}" ;; esac
+  a="${a//\\/\\\\}"; a="${a//\"/\\\"}"; a="${a//$'\n'/\\n}"; a="${a//$'\r'/\\r}"; a="${a//$'\t'/\\t}"
+  json+="$sep\"$a\""
+  sep=","
+done
+json="${json%,\"*}],\"cwd\":\"$a\"}"
+
+exec 3<>"/dev/tcp/127.0.0.1/$port" 2>/dev/null || py "${orig[@]}"
+printf '%s\n' "$json" >&3
+# The answer is read in blocks. Line by line (mapfile, read) bash takes one byte per system call from a socket, which
+# cost 30 ms for every 1000 characters of answer on Windows: 0.2 s for a full view.
+out=""
+while IFS= read -r -N 65536 -u 3 chunk; do out+="$chunk"; done
+out+="$chunk"
+exec 3>&-
+rc=0
+nl=$'\n'
+[ -n "$out" ] && printf '%s\n' "${out%"$nl"}"
+case "$out" in ERR*|"EXPECT FAILED"*|*"${nl}ERR at step \`"*|*"${nl}EXPECT FAILED"*) rc=1 ;; esac
+exit $rc
