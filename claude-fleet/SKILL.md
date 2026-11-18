@@ -18,6 +18,7 @@ Options:
 - `-PermissionMode mode` default `bypassPermissions`
 - `-StaggerSec s` pause between launches (default 2)
 - `-Server -Capacity N` instead of windows, one `claude remote-control --spawn same-dir --capacity N` server that spawns sessions on demand from claude.ai/code
+- `-Hidden` no visible window, for "run claude rc in a hidden shell" (`-Server -Hidden`). Works for window sessions too. Drops `-NoExit`, since nobody can read a hidden window, so the shell exits with claude. The only way to stop it is `taskkill /PID <pid> /T /F` on the printed PID
 - `-Prompt text` first message for each window session. One line, no double quotes (Windows PowerShell 5.1 does not escape them for native programs, and the launcher refuses them); put anything longer in a file and prompt "Read <file> and do what it says." Scripts use this to start a session on a job, e.g. the Twitch Prime-sub job's repair session (`~/Code/buy/workflows/twitch-prime-sub`)
 
 Each session runs `claude --remote-control '<name>' --permission-mode bypassPermissions` in a `-NoExit` PowerShell window, so it is interactive locally AND controllable from claude.ai/code. The script prints the window PIDs; stop a session by closing its window or `taskkill /PID <pid> /T /F` (never `/IM node.exe`, that kills pm2/plex).

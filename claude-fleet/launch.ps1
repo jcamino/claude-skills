@@ -5,10 +5,14 @@
 #   powershell -ExecutionPolicy Bypass -File launch.ps1 -Count 5
 #   powershell -ExecutionPolicy Bypass -File launch.ps1 -Count 3 -Prefix fleet -Dir C:\Users\jcamino\Code\npb-watch
 #   powershell -ExecutionPolicy Bypass -File launch.ps1 -Server -Capacity 5   # on-demand server, no per-session windows
+#   powershell -ExecutionPolicy Bypass -File launch.ps1 -Server -Hidden       # same, in a hidden shell
 #   powershell -ExecutionPolicy Bypass -File launch.ps1 -Count 1 -Prompt 'Read brief.md and do what it says.'
 #
 # Each session is named "<Prefix>-<n>" in the Remote Control list. Windows
 # stay open (-NoExit) so a crashed session leaves its output readable.
+# -Hidden starts every shell with no visible window (remote use only). A hidden
+# window can't be read, so it also drops -NoExit: the shell exits with claude
+# instead of lingering invisibly. Stop it with taskkill on the printed pid.
 # -Prompt is each session's first message. Keep it to one line with no double
 # quotes (it rides a -Command string into Windows PowerShell 5.1, which does not
 # escape them for native programs); point it at a file for anything longer.
@@ -20,7 +24,8 @@ param(
   [int]$StaggerSec = 2,
   [switch]$Server,
   [int]$Capacity = 5,
-  [string]$Prompt = ''
+  [string]$Prompt = '',
+  [switch]$Hidden
 )
 if ($Prompt -match '[\r\n"]') { throw '-Prompt must be one line without double quotes; point it at a file instead' }
 
@@ -52,11 +57,17 @@ foreach ($v in 'CLAUDE_CODE_CHILD_SESSION', 'CLAUDECODE') {
 # how a marker might arrive. Inherited by everything these sessions launch too.
 $env:CLAUDE_CODE_FORCE_SESSION_PERSISTENCE = '1'
 
+# @() around the if: a statement's output is unrolled, so a bare one-element
+# array would come back as a string and '+' would string-concatenate.
+$shellArgs = @(if (-not $Hidden) { '-NoExit' })
+$winStyle = if ($Hidden) { 'Hidden' } else { 'Normal' }
+$stopHint = if ($Hidden) { 'taskkill /PID <pid> /T /F (hidden, no window to close)' } else { 'close the window or taskkill /PID <pid> /T /F' }
+
 if ($Server) {
   $cmd = "claude remote-control --permission-mode $PermissionMode --spawn same-dir --capacity $Capacity"
-  $p = Start-Process powershell -ArgumentList '-NoExit', '-Command', $cmd -WorkingDirectory $Dir -PassThru
-  Write-Host ("started remote-control server (window pid {0}), capacity {1}, in {2}" -f $p.Id, $Capacity, $Dir)
-  Write-Host 'Sessions spawn on demand from claude.ai/code. Stop: close the window or taskkill /PID <pid> /T /F (never /IM node.exe).'
+  $p = Start-Process powershell -ArgumentList ($shellArgs + @('-Command', $cmd)) -WindowStyle $winStyle -WorkingDirectory $Dir -PassThru
+  Write-Host ("started remote-control server ({0} window pid {1}), capacity {2}, in {3}" -f $winStyle.ToLower(), $p.Id, $Capacity, $Dir)
+  Write-Host ("Sessions spawn on demand from claude.ai/code. Stop: {0} (never /IM node.exe)." -f $stopHint)
   return
 }
 
@@ -65,12 +76,12 @@ for ($i = 1; $i -le $Count; $i++) {
   $name = "$Prefix-$i"
   $cmd = "claude --remote-control '$name' --permission-mode $PermissionMode"
   if ($Prompt) { $cmd += " '" + $Prompt.Replace("'", "''") + "'" }
-  $p = Start-Process powershell -ArgumentList '-NoExit', '-Command', $cmd -WorkingDirectory $Dir -PassThru
+  $p = Start-Process powershell -ArgumentList ($shellArgs + @('-Command', $cmd)) -WindowStyle $winStyle -WorkingDirectory $Dir -PassThru
   $launched += [pscustomobject]@{ n = $i; name = $name; windowPid = $p.Id }
   Write-Host ("started {0}  (window pid {1})  in {2}" -f $name, $p.Id, $Dir)
   if ($i -lt $Count) { Start-Sleep -Seconds $StaggerSec }
 }
 Write-Host ''
 Write-Host ("{0} sessions launched with --permission-mode {1}. They appear as {2}-1..{3} at claude.ai/code within ~30 s." -f $Count, $PermissionMode, $Prefix, $Count)
-Write-Host 'Stop one: close its window, or taskkill /PID <windowPid> /T /F (never /IM node.exe).'
+Write-Host ("Stop one: {0} (never /IM node.exe)." -f $stopHint.Replace('<pid>', '<windowPid>'))
 $launched | Format-Table -AutoSize
